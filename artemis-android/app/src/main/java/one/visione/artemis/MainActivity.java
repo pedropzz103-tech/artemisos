@@ -3,6 +3,12 @@ package one.visione.artemis;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.net.Uri;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import android.widget.Button;
 import android.content.pm.PackageManager;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -21,13 +27,34 @@ import java.util.Locale;
 public class MainActivity extends Activity {
  private TextToSpeech tts; private SpeechRecognizer recognizer; private TextView status; private Orb orb;
  private boolean ready = false;
+ private static final int PICK_GGUF = 41;
  @Override public void onCreate(Bundle b) { super.onCreate(b);
   LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setGravity(17); root.setBackgroundColor(Color.rgb(8,12,27));
   TextView title = new TextView(this); title.setText("ARTEMIS OS"); title.setTextSize(27); title.setTextColor(Color.WHITE); title.setGravity(17); root.addView(title);
   orb = new Orb(); root.addView(orb, new LinearLayout.LayoutParams(-1, 320));
   status = new TextView(this); status.setText("Inicializando voz..."); status.setTextSize(18); status.setTextColor(Color.WHITE); status.setGravity(17); root.addView(status); setContentView(root);
   tts = new TextToSpeech(this, result -> { if(result == TextToSpeech.SUCCESS) { int lang = tts.setLanguage(new Locale("pt", "BR")); ready = lang != TextToSpeech.LANG_MISSING_DATA && lang != TextToSpeech.LANG_NOT_SUPPORTED; status.setText(ready ? "Toque na esfera e diga oi" : "Instale uma voz em português nas configurações do Android"); } else status.setText("Voz indisponível neste aparelho"); });
+  Button modelButton = new Button(this); modelButton.setText(ModelAssets.hasAiModel(this) ? "Modelo de IA armazenado" : "Importar modelo GGUF da Artemis"); root.addView(modelButton);
+  modelButton.setOnClickListener(v -> { Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT); picker.setType("*/*"); picker.addCategory(Intent.CATEGORY_OPENABLE); startActivityForResult(picker, PICK_GGUF); });
   orb.setOnClickListener(v -> listen());
+ }
+ @Override protected void onActivityResult(int requestCode,int resultCode,Intent data) {
+  super.onActivityResult(requestCode,resultCode,data);
+  if(requestCode!=PICK_GGUF || resultCode!=RESULT_OK || data==null || data.getData()==null) return;
+  Uri uri=data.getData();
+  status.setText("Importando modelo...");
+  new Thread(() -> {
+   File destination=ModelAssets.gguf(this);
+   File temp=new File(destination.getParentFile(), destination.getName()+".part");
+   try { destination.getParentFile().mkdirs();
+    try(InputStream input=getContentResolver().openInputStream(uri); OutputStream output=new FileOutputStream(temp)) {
+     if(input==null) throw new IllegalStateException("Não foi possível abrir arquivo");
+     byte[] buffer=new byte[65536]; int count; while((count=input.read(buffer))!=-1) output.write(buffer,0,count);
+    }
+    if(!temp.renameTo(destination)) throw new IllegalStateException("Falha ao salvar modelo");
+    runOnUiThread(() -> status.setText("Modelo importado. Motor de inferência ainda não instalado."));
+   } catch(Exception e){temp.delete();runOnUiThread(() -> status.setText("Erro ao importar: "+e.getMessage()));}
+  }).start();
  }
  private void say(String msg) { status.setText(msg); orb.speaking=true; orb.invalidate(); if(ready) tts.speak(msg, TextToSpeech.QUEUE_FLUSH, null, "artemis"); orb.postDelayed(() -> {orb.speaking=false;orb.invalidate();}, 2500); }
  private void listen() { if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},1);return;}
