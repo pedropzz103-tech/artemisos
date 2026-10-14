@@ -28,6 +28,7 @@ public class MainActivity extends Activity {
  private TextToSpeech tts; private SpeechRecognizer recognizer; private TextView status; private Orb orb;
  private boolean ready = false;
  private static final int PICK_GGUF = 41;
+ private LocalAiEngine ai;
  @Override public void onCreate(Bundle b) { super.onCreate(b);
   LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setGravity(17); root.setBackgroundColor(Color.rgb(8,12,27));
   TextView title = new TextView(this); title.setText("ARTEMIS OS"); title.setTextSize(27); title.setTextColor(Color.WHITE); title.setGravity(17); root.addView(title);
@@ -36,6 +37,7 @@ public class MainActivity extends Activity {
   tts = new TextToSpeech(this, result -> { if(result == TextToSpeech.SUCCESS) { int lang = tts.setLanguage(new Locale("pt", "BR")); ready = lang != TextToSpeech.LANG_MISSING_DATA && lang != TextToSpeech.LANG_NOT_SUPPORTED; status.setText(ready ? "Toque na esfera e diga oi" : "Instale uma voz em português nas configurações do Android"); } else status.setText("Voz indisponível neste aparelho"); });
   Button modelButton = new Button(this); modelButton.setText(ModelAssets.hasAiModel(this) ? "Modelo de IA armazenado" : "Importar modelo GGUF da Artemis"); root.addView(modelButton);
   modelButton.setOnClickListener(v -> { Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT); picker.setType("*/*"); picker.addCategory(Intent.CATEGORY_OPENABLE); startActivityForResult(picker, PICK_GGUF); });
+  ai = new LlamaCliEngine(this);
   orb.setOnClickListener(v -> listen());
  }
  @Override protected void onActivityResult(int requestCode,int resultCode,Intent data) {
@@ -52,11 +54,18 @@ public class MainActivity extends Activity {
      byte[] buffer=new byte[65536]; int count; while((count=input.read(buffer))!=-1) output.write(buffer,0,count);
     }
     if(!temp.renameTo(destination)) throw new IllegalStateException("Falha ao salvar modelo");
-    runOnUiThread(() -> status.setText("Modelo importado. Motor de inferência ainda não instalado."));
+    runOnUiThread(() -> status.setText(ai.isReady() ? "Modelo importado. Toque na esfera para conversar." : "Modelo importado. Motor nativo indisponível."));
    } catch(Exception e){temp.delete();runOnUiThread(() -> status.setText("Erro ao importar: "+e.getMessage()));}
   }).start();
  }
  private void say(String msg) { status.setText(msg); orb.speaking=true; orb.invalidate(); if(ready) tts.speak(msg, TextToSpeech.QUEUE_FLUSH, null, "artemis"); orb.postDelayed(() -> {orb.speaking=false;orb.invalidate();}, 2500); }
+ private void respond(String heard) {
+  if(heard.trim().isEmpty()) {status.setText("Não ouvi sua pergunta.");return;}
+  if(!ai.isReady()) {say("Para conversar comigo offline, importe primeiro o modelo de inteligência artificial.");return;}
+  status.setText("Artemis pensando offline...");
+  new Thread(() -> {try {String answer=ai.generate(heard);runOnUiThread(() -> say(answer));}
+   catch(Exception e){runOnUiThread(() -> status.setText("Erro da IA local: "+e.getMessage()));}}).start();
+ }
  private void listen() { if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},1);return;}
   if(!SpeechRecognizer.isRecognitionAvailable(this)){status.setText("Reconhecimento de voz não disponível");return;}
   if(recognizer!=null) recognizer.destroy(); recognizer=SpeechRecognizer.createSpeechRecognizer(this);
@@ -65,12 +74,12 @@ public class MainActivity extends Activity {
    public void onBeginningOfSpeech(){} public void onRmsChanged(float rms){} public void onBufferReceived(byte[] b){}
    public void onEndOfSpeech(){orb.listening=false;orb.invalidate();}
    public void onError(int error){orb.listening=false;orb.invalidate();status.setText("Não entendi. Toque para tentar novamente.");}
-   public void onResults(Bundle results){orb.listening=false;orb.invalidate();ArrayList<String> words=results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);String heard=(words==null||words.isEmpty())?"":words.get(0);say(heard.toLowerCase(Locale.ROOT).contains("oi")||heard.toLowerCase(Locale.ROOT).contains("olá") ? "Olá! Eu sou a Artemis. Que bom te conhecer!" : "Você disse: "+heard);}
+   public void onResults(Bundle results){orb.listening=false;orb.invalidate();ArrayList<String> words=results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);String heard=(words==null||words.isEmpty())?"":words.get(0);respond(heard);}
    public void onPartialResults(Bundle p){} public void onEvent(int type,Bundle b){}
   });
   Intent intent=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE,"pt-BR");intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
   recognizer.startListening(intent);
  }
- @Override protected void onDestroy(){if(recognizer!=null)recognizer.destroy();if(tts!=null){tts.stop();tts.shutdown();}super.onDestroy();}
+ @Override protected void onDestroy(){if(recognizer!=null)recognizer.destroy();if(tts!=null){tts.stop();tts.shutdown();}if(ai!=null)ai.close();super.onDestroy();}
  class Orb extends View { Paint p=new Paint(3); boolean listening=false,speaking=false; Orb(){super(MainActivity.this);} protected void onDraw(Canvas c){super.onDraw(c);float x=getWidth()/2f,y=getHeight()/2f,r=Math.min(getWidth(),getHeight())*.30f; p.setColor(listening?Color.CYAN:speaking?Color.MAGENTA:Color.rgb(83,118,255));p.setShadowLayer(38,0,0,p.getColor());setLayerType(View.LAYER_TYPE_SOFTWARE,p);c.drawCircle(x,y,r,p);p.clearShadowLayer();p.setColor(0x66FFFFFF);c.drawCircle(x-r*.23f,y-r*.25f,r*.33f,p);}}
 }
