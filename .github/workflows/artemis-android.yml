@@ -34,7 +34,8 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
             -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=ON \
             -DLLAMA_BUILD_SERVER=OFF -DGGML_OPENMP=OFF
-          cmake --build /tmp/llama-android -j 2\n          find /tmp/llama-android -type f -name llama-cli -print
+          cmake --build /tmp/llama-android -j 2
+          find /tmp/llama-android -type f -name llama-cli -print
           mkdir -p artemis-android/app/src/main/jniLibs/arm64-v8a
           cp /tmp/llama-android/bin/llama-cli artemis-android/app/src/main/jniLibs/arm64-v8a/libartemis_cli.so
       - name: Build debug APK
