@@ -32,7 +32,7 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE="$ANDROID_HOME/ndk/$(ls "$ANDROID_HOME/ndk" | sort -V | tail -1)/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-26 \
             -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
-            -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \
+            -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=ON \
             -DLLAMA_BUILD_SERVER=OFF -DGGML_OPENMP=OFF
           cmake --build /tmp/llama-android --target llama-cli -j 2
           mkdir -p artemis-android/app/src/main/jniLibs/arm64-v8a
