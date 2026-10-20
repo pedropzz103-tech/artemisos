@@ -1,0 +1,46 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"><title>Caravan OS</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:Arial,sans-serif;color:#eaf7ff;background:radial-gradient(ellipse at center,#122247 0%,#080e20 50%,#040712 100%)}
+main{display:grid;grid-template-columns:30% 40% 30%;width:100vw;height:100vh;padding:2.5vh 3vw;gap:0}
+aside{display:flex;flex-direction:column;justify-content:center;gap:1.5vh;min-width:0}
+h2{font-size:clamp(13px,3vh,21px);letter-spacing:.18em;color:#91cfff;margin:0 0 1vh}
+.light{display:flex;align-items:center;justify-content:space-between;padding:1.4vh 1.4vw;border-radius:12px;border:1px solid #35547a;background:#0d1d35;color:#e8f5ff;font-size:clamp(12px,2.5vh,18px);min-height:11vh}
+.light.on{background:#16445b;border-color:#5ae6e7;box-shadow:inset 0 0 18px #1d819355}
+.dot{width:12px;height:12px;border-radius:50%;background:#50627e;box-shadow:0 0 5px #50627e}.on .dot{background:#59f6df;box-shadow:0 0 12px #59f6df}
+.center{display:flex;flex-direction:column;align-items:center;justify-content:space-between;min-width:0;text-align:center}
+.brand{font-size:clamp(14px,3.6vh,25px);letter-spacing:.28em;font-weight:bold}.subtitle{font-size:clamp(10px,2vh,14px);color:#7ba8d0;margin-top:.5vh}
+.orb{width:min(29vw,57vh);height:min(29vw,57vh);border-radius:50%;position:relative;background:radial-gradient(circle at 29% 24%,#d9ffff 0%,#74d6ff 11%,#348fe9 23%,#2735b6 48%,#101b5b 68%,#040d24 82%);box-shadow:0 0 16px #3aaaff,0 0 55px #345aff99,inset -16px -22px 35px #060b35;animation:breathe 4s ease-in-out infinite}
+.orb:after{content:'';position:absolute;inset:13%;border-radius:50%;border:1px solid #b7f7ff77;transform:rotate(-22deg) scaleY(.55);box-shadow:0 0 15px #9ceaff}
+@keyframes breathe{50%{transform:scale(1.045);filter:brightness(1.18)}}
+.bottom{font-size:clamp(10px,2vh,14px);color:#9cbad5;margin-bottom:1vh}
+.status{padding:1.8vh 1vw;border:1px solid #294769;border-radius:12px;background:#0b1b31;font-size:clamp(11px,2.4vh,17px)}
+#alarm{min-height:14vh;border-radius:14px;border:1px solid #4281ad;background:#123353;color:white;font-size:clamp(12px,2.7vh,20px)}
+#alarm.on{border-color:#65edda;background:#1b5556}
+.small{font-size:clamp(10px,1.9vh,14px);color:#8daecc;line-height:1.5}
+</style></head><body><main>
+<aside><h2>ILUMINAÇÃO</h2><div id="lights"></div></aside>
+<section class="center"><div><div class="brand">CARAVAN OS</div><div class="subtitle">EVE · CONTROLE CENTRAL</div></div><div class="orb"></div><div class="bottom" id="connection">Conectando ao ESP32...</div></section>
+<aside><h2>SEGURANÇA</h2><div class="status" id="esp">ESP32: verificando</div><div class="status">iPhone Eve: integração futura</div><button id="alarm">ALARME · --</button><div class="small">Controles em modo demonstração.<br>Sem acionamento físico.</div></aside>
+</main><script>
+const BASE='http://192.168.4.1';
+const names=['Corredor','Banheiro','Sala','Cozinha','Quarto'];
+let state={lights:[false,false,false,false,false],alarm:false},online=false;
+const lights=document.getElementById('lights'),alarm=document.getElementById('alarm');
+lights.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:1.4vh';
+function draw(){
+ lights.innerHTML=names.map((n,i)=>'<button class="light '+(state.lights[i]?'on':'')+'" onclick="light('+i+')" '+(!online?'disabled':'')+'><span>'+n+'</span><i class="dot"></i></button>').join('');
+ alarm.textContent='ALARME · '+(state.alarm?'ARMADO':'DESARMADO');
+ alarm.className=state.alarm?'on':'';alarm.disabled=!online;
+ document.getElementById('connection').textContent=online?'● ESP32 CONECTADO':'○ ESP32 DESCONECTADO · tentando reconectar';
+ document.getElementById('esp').textContent='ESP32: '+(online?'online':'offline');
+}
+let nextRequest=1;const pending=new Map();
+window.caravanReply=(id,ok,payload)=>{const p=pending.get(id);if(!p)return;pending.delete(id);clearTimeout(p.timer);try{ok?p.resolve(JSON.parse(payload)):p.reject(Error('offline'))}catch(e){p.reject(e)}};
+function call(path,method='GET'){
+ return new Promise((resolve,reject)=>{const id=nextRequest++;const timer=setTimeout(()=>{pending.delete(id);reject(Error('timeout'))},2600);pending.set(id,{resolve,reject,timer});CaravanBridge.request(path,method,id)});
+}
+async function refresh(){try{state=await call('/api/state');online=true}catch(e){online=false}draw()}
+async function light(i){if(!online)return;try{state=await call('/api/light?id='+i,'POST');online=true}catch(e){online=false}draw()}
+alarm.onclick=async()=>{if(!online)return;try{state=await call('/api/alarm','POST');online=true}catch(e){online=false}draw()};
+refresh();setInterval(refresh,3000);
+</script></body></html>
