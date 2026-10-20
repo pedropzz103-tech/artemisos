@@ -21,7 +21,7 @@ public class MainActivity extends Activity {
   s.setDomStorageEnabled(true);
   s.setAllowFileAccess(true);
   s.setAllowFileAccessFromFileURLs(false);
-  s.setAllowUniversalAccessFromFileURLs(false);
+  s.setAllowUniversalAccessFromFileURLs(true); // Trusted bundled page only; prototype local ESP32 HTTP
   setContentView(web);
   web.loadUrl("file:///android_asset/index.html");
  }
