@@ -34,9 +34,10 @@ function draw(){
  document.getElementById('connection').textContent=online?'● ESP32 CONECTADO':'○ ESP32 DESCONECTADO · tentando reconectar';
  document.getElementById('esp').textContent='ESP32: '+(online?'online':'offline');
 }
-async function call(path,method='GET'){
- const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),2200);
- try{const r=await fetch(BASE+path,{method,cache:'no-store',signal:controller.signal});if(!r.ok)throw Error('HTTP '+r.status);return await r.json()}finally{clearTimeout(timeout)}
+let nextRequest=1;const pending=new Map();
+window.caravanReply=(id,ok,payload)=>{const p=pending.get(id);if(!p)return;pending.delete(id);clearTimeout(p.timer);try{ok?p.resolve(JSON.parse(payload)):p.reject(Error('offline'))}catch(e){p.reject(e)}};
+function call(path,method='GET'){
+ return new Promise((resolve,reject)=>{const id=nextRequest++;const timer=setTimeout(()=>{pending.delete(id);reject(Error('timeout'))},2600);pending.set(id,{resolve,reject,timer});CaravanBridge.request(path,method,id)});
 }
 async function refresh(){try{state=await call('/api/state');online=true}catch(e){online=false}draw()}
 async function light(i){if(!online)return;try{state=await call('/api/light?id='+i,'POST');online=true}catch(e){online=false}draw()}
