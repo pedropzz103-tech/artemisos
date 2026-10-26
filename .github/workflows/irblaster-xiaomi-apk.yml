@@ -1,0 +1,40 @@
+name: Build IR Blaster APK
+on:
+  push:
+    branches:
+      - build/irblaster-xiaomi
+    paths:
+      - 'IRBlaster/**'
+      - '.github/workflows/irblaster-xiaomi-apk.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android platform
+        run: |
+          echo "Android SDK at $ANDROID_HOME"
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build installable APK
+        run: gradle -p IRBlaster :app:assembleDebug --stacktrace
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: VISIONE-IRBlaster-APK
+          path: IRBlaster/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
