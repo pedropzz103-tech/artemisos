@@ -8,6 +8,7 @@ No ESP32 needed for *transmitting* IR. A receiver (e.g. ESP32 + VS1838B) is stil
 - Samsung TV: one common Samsung32 power command (0xE0E040BF).
 - LG TV: one common NEC-style power command (0x20DF10EF).
 - Sony TV: one common SIRC12 power command (0xA90).
+- **302 curated TV Power signals**, testable one-by-one. These include NEC, NECext, Samsung32, Sony SIRC, and raw codes. A code may turn on a TV that is off.
 - Manual testing, plus an explicitly confirmed sequence of three common TV codes.
 - Import and store a Flipper Zero `.ir` file from device storage. Sends RAW and parsed NEC, NECext, Samsung32, SIRC, SIRC15, SIRC20 signals.
 - Filter imported signals by their saved button names.
@@ -21,4 +22,4 @@ The GitHub Actions workflow **Build IR Blaster APK** runs Gradle 8.9 and Android
 Android 7.0+ with a functioning IR transmitter available through `ConsumerIrManager` (as on some Xiaomi / Redmi phones). Some MIUI/HyperOS devices may restrict public access to their emitter. The app checks and reports whether the interface exists.
 
 ## Data
-Imported remote definitions remain in the app's private storage on the phone. No network permission, analytics, or account access.
+Imported remote definitions remain in the app's private storage on the phone. A curated TV Power library is shipped in the APK as a local asset. Source: Flipper Zero's [TV IR library](https://github.com/flipperdevices/flipperzero-firmware/blob/dev/applications/main/infrared/resources/infrared/assets/tv.ir). Check the upstream license if redistributing the code/database. No network permission, analytics, or account access.
