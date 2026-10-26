@@ -47,6 +47,9 @@ public final class MainActivity extends Activity {
     private final ExecutorService sender = Executors.newSingleThreadExecutor();
     private final ArrayList<IrSignal> presets = new ArrayList<>();
     private final ArrayList<IrSignal> imported = new ArrayList<>();
+    private final ArrayList<IrSignal> universal = new ArrayList<>();
+    private int universalIndex = 0;
+    private TextView universalCounter;
     private ConsumerIrManager transmitter;
     private TextView status;
     private TextView count;
@@ -121,6 +124,18 @@ public final class MainActivity extends Activity {
         button(root, "Testar os 3 códigos em sequência", accent, background,
                 v -> confirmSweep());
 
+        label(root, "BIBLIOTECA UNIVERSAL DE TV", 12, accent, true, 12);
+        label(root, "Mais de 300 comandos Power de aparelhos diferentes. Testa um código por vez. Alguns podem ligar a TV em vez de desligá-la.",
+                13, muted, false, 8);
+        universalCounter = label(root, "Carregando biblioteca...", 15, foreground, true, 7);
+        button(root, "⏻  Testar próximo código universal", accent, background,
+                v -> sendNextUniversal());
+        button(root, "Voltar ao primeiro código", surface, muted, v -> {
+            universalIndex = 0;
+            updateUniversalCounter();
+        });
+        loadUniversal();
+
         label(root, "COMANDOS .IR", 12, accent, true, 12);
         label(root, "Importa controles do Flipper Zero ou comandos RAW capturados com o ESP32.",
                 13, muted, false, 7);
@@ -158,6 +173,50 @@ public final class MainActivity extends Activity {
                 13, muted, false, 0);
         loadSavedLibrary();
         renderImported();
+    }
+
+    private void loadUniversal() {
+        try (InputStream stream = getAssets().open("universal_tv_power.ir")) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] b = new byte[4096];
+            int n;
+            while ((n = stream.read(b)) != -1) {
+                out.write(b, 0, n);
+                if (out.size() > MAX_FILE_BYTES) throw new Exception("Biblioteca grande demais");
+            }
+            universal.addAll(parseFile(new String(out.toByteArray(), StandardCharsets.UTF_8)));
+            updateUniversalCounter();
+        } catch (Exception e) {
+            universalCounter.setText("Biblioteca indisponível: " + e.getMessage());
+        }
+    }
+
+    private void sendNextUniversal() {
+        if (universal.isEmpty()) {
+            Toast.makeText(this, "Sem códigos universais disponíveis.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (universalIndex >= universal.size()) {
+            new AlertDialog.Builder(this).setTitle("Fim da biblioteca")
+                    .setMessage("Todos os códigos disponíveis foram testados. Reiniciar?")
+                    .setNegativeButton("Cancelar", null)
+                    .setPositiveButton("Reiniciar", (d,w) -> {
+                        universalIndex = 0;
+                        updateUniversalCounter();
+                    }).show();
+            return;
+        }
+        int sequence = universalIndex + 1;
+        IrSignal selected = universal.get(universalIndex++);
+        updateUniversalCounter();
+        sendOne(new IrSignal("Universal #" + sequence + " (" + selected.description + ")",
+                selected.description, selected.frequency, selected.pulses, selected.repeats));
+    }
+
+    private void updateUniversalCounter() {
+        if (universalCounter == null) return;
+        universalCounter.setText("Próximo: " + Math.min(universalIndex + 1, universal.size())
+                + " de " + universal.size() + " comandos");
     }
 
     private void sendOne(IrSignal item) {
@@ -361,8 +420,9 @@ public final class MainActivity extends Activity {
                 case "NECEXT": {
                     int lo=reverse8((int)address);
                     int hi=reverse8((int)(address>>8));
-                    int c=reverse8((int)command);
-                    long bits=((long)lo<<24)|((long)hi<<16)|((long)c<<8)|(c^0xff);
+                    int cLo=reverse8((int)command);
+                    int cHi=reverse8((int)(command>>8));
+                    long bits=((long)lo<<24)|((long)hi<<16)|((long)cLo<<8)|cHi;
                     pulses=pulseDistance(bits,32,9000,4500,560,560,1690,560);
                     break;
                 }
